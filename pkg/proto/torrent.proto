@@ -1,0 +1,31 @@
+syntax="proto3";
+
+package anirss.torrent;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "rpc/torrent";
+
+/*
+   Provide a query parameter to search and download specific anime
+   animeName: Self explanatory
+   episodeRange: allows you to specify either a range of episode numbers (1-20) or a single episode.
+   season: Season of the anime to download the pisodes from.
+*/
+message QueryParams {
+  string animeName = 1;
+  string episodeRange = 2;
+  int32 season = 3;
+}
+
+message DownloadResult {
+  string status = 1;
+}
+
+service TorrentSvc {
+  // Check DB for all pending/new downloads.
+  rpc CheckAllPendingDownloads(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+
+  // Query for downloading a specific anime/season/episode using params
+  rpc DownloadAnime(QueryParams) returns (DownloadResult) {}
+}

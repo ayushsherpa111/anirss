@@ -1,0 +1,43 @@
+syntax="proto3";
+
+package anirss.anidb;
+
+import "google/protobuf/empty.proto";
+
+option go_package = "rpc/dbservice";
+
+
+message Result {
+  string status = 1;
+  int32 newEntries = 2;
+}
+/*
+   List of episodes that are to be downloaded.
+*/
+message EpisodeList {
+  repeated AnimeDetails episodes = 1;
+}
+
+/**
+ * Details related to downloading an episode of any given anime.
+ */
+message AnimeDetails {
+  string animeName = 1;
+  int32 seasonNumber = 2;
+  int32 episode = 3;
+  string magnetLink = 4;
+  int32 animeID = 5;
+  string quality = 20;
+}
+
+message AniParams {
+  int32 animeID = 1;
+}
+
+service AniDbSvc {
+  rpc AddAnime(AniParams) returns(Result) {};
+
+  rpc ForceUpdate(google.protobuf.Empty) returns (Result) {};
+
+  rpc ForceUpdateAnime(AniParams) returns (Result) {};
+}
