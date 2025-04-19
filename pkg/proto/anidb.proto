@@ -1,4 +1,4 @@
-syntax="proto3";
+syntax = "proto3";
 
 package anirss.anidb;
 
@@ -6,17 +6,15 @@ import "google/protobuf/empty.proto";
 
 option go_package = "rpc/dbservice";
 
-
 message Result {
   string status = 1;
   int32 newEntries = 2;
 }
+
 /*
    List of episodes that are to be downloaded.
 */
-message EpisodeList {
-  repeated AnimeDetails episodes = 1;
-}
+message EpisodeList { repeated AnimeDetails episodes = 1; }
 
 /**
  * Details related to downloading an episode of any given anime.
@@ -32,12 +30,15 @@ message AnimeDetails {
 
 message AniParams {
   int32 animeID = 1;
+  string name = 2;
 }
 
 service AniDbSvc {
-  rpc AddAnime(AniParams) returns(Result) {};
+  rpc AddAnimeById(AniParams) returns(Result) {}
 
-  rpc ForceUpdate(google.protobuf.Empty) returns (Result) {};
+  rpc AddAnimeByName(AniParams) returns(Result) {}
 
-  rpc ForceUpdateAnime(AniParams) returns (Result) {};
+  rpc ForceUpdate(google.protobuf.Empty) returns(Result) {}
+
+  rpc ForceUpdateAnime(AniParams) returns(Result) {}
 }

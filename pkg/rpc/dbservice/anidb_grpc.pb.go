@@ -19,7 +19,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AniDbSvcClient interface {
-	AddAnime(ctx context.Context, in *AniParams, opts ...grpc.CallOption) (*Result, error)
+	AddAnimeById(ctx context.Context, in *AniParams, opts ...grpc.CallOption) (*Result, error)
+	AddAnimeByName(ctx context.Context, in *AniParams, opts ...grpc.CallOption) (*Result, error)
 	ForceUpdate(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Result, error)
 	ForceUpdateAnime(ctx context.Context, in *AniParams, opts ...grpc.CallOption) (*Result, error)
 }
@@ -32,9 +33,18 @@ func NewAniDbSvcClient(cc grpc.ClientConnInterface) AniDbSvcClient {
 	return &aniDbSvcClient{cc}
 }
 
-func (c *aniDbSvcClient) AddAnime(ctx context.Context, in *AniParams, opts ...grpc.CallOption) (*Result, error) {
+func (c *aniDbSvcClient) AddAnimeById(ctx context.Context, in *AniParams, opts ...grpc.CallOption) (*Result, error) {
 	out := new(Result)
-	err := c.cc.Invoke(ctx, "/anirss.anidb.AniDbSvc/AddAnime", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/anirss.anidb.AniDbSvc/AddAnimeById", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *aniDbSvcClient) AddAnimeByName(ctx context.Context, in *AniParams, opts ...grpc.CallOption) (*Result, error) {
+	out := new(Result)
+	err := c.cc.Invoke(ctx, "/anirss.anidb.AniDbSvc/AddAnimeByName", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +73,8 @@ func (c *aniDbSvcClient) ForceUpdateAnime(ctx context.Context, in *AniParams, op
 // All implementations must embed UnimplementedAniDbSvcServer
 // for forward compatibility
 type AniDbSvcServer interface {
-	AddAnime(context.Context, *AniParams) (*Result, error)
+	AddAnimeById(context.Context, *AniParams) (*Result, error)
+	AddAnimeByName(context.Context, *AniParams) (*Result, error)
 	ForceUpdate(context.Context, *emptypb.Empty) (*Result, error)
 	ForceUpdateAnime(context.Context, *AniParams) (*Result, error)
 	mustEmbedUnimplementedAniDbSvcServer()
@@ -73,8 +84,11 @@ type AniDbSvcServer interface {
 type UnimplementedAniDbSvcServer struct {
 }
 
-func (UnimplementedAniDbSvcServer) AddAnime(context.Context, *AniParams) (*Result, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AddAnime not implemented")
+func (UnimplementedAniDbSvcServer) AddAnimeById(context.Context, *AniParams) (*Result, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddAnimeById not implemented")
+}
+func (UnimplementedAniDbSvcServer) AddAnimeByName(context.Context, *AniParams) (*Result, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddAnimeByName not implemented")
 }
 func (UnimplementedAniDbSvcServer) ForceUpdate(context.Context, *emptypb.Empty) (*Result, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ForceUpdate not implemented")
@@ -95,20 +109,38 @@ func RegisterAniDbSvcServer(s grpc.ServiceRegistrar, srv AniDbSvcServer) {
 	s.RegisterService(&AniDbSvc_ServiceDesc, srv)
 }
 
-func _AniDbSvc_AddAnime_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _AniDbSvc_AddAnimeById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AniParams)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AniDbSvcServer).AddAnime(ctx, in)
+		return srv.(AniDbSvcServer).AddAnimeById(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/anirss.anidb.AniDbSvc/AddAnime",
+		FullMethod: "/anirss.anidb.AniDbSvc/AddAnimeById",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AniDbSvcServer).AddAnime(ctx, req.(*AniParams))
+		return srv.(AniDbSvcServer).AddAnimeById(ctx, req.(*AniParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AniDbSvc_AddAnimeByName_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AniParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AniDbSvcServer).AddAnimeByName(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/anirss.anidb.AniDbSvc/AddAnimeByName",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AniDbSvcServer).AddAnimeByName(ctx, req.(*AniParams))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -157,8 +189,12 @@ var AniDbSvc_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*AniDbSvcServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "AddAnime",
-			Handler:    _AniDbSvc_AddAnime_Handler,
+			MethodName: "AddAnimeById",
+			Handler:    _AniDbSvc_AddAnimeById_Handler,
+		},
+		{
+			MethodName: "AddAnimeByName",
+			Handler:    _AniDbSvc_AddAnimeByName_Handler,
 		},
 		{
 			MethodName: "ForceUpdate",

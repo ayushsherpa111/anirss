@@ -2,9 +2,12 @@ package dbhandler
 
 import (
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
+	"github.com/ayushsherpa111/anirss/pkg/objects"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -14,18 +17,29 @@ const (
 
 var tables = []string{
 	`CREATE TABLE IF NOT EXISTS ANIME(
-      ID    INTEGER,
-      NAME  VARCHAR,
+      ID        INTEGER,
+      TITLE     VARCHAR,
+      START_DATE DATE,
+      END_DATE DATE,
       STATUS VARCHAR,
       PRIMARY KEY(ID)
     )`,
 	`CREATE TABLE IF NOT EXISTS EPISODES(
       ANI_ID INTEGER,
-      SEASON_ID INTEGER,
-      EPISODE_NUMBER INTEGER,
-      QUALITY VARCHAR,
+      EP_NUM INTEGER,
+      TITLE VARCHAR,
+      AIR_DATE DATE,
       FOREIGN KEY(ANI_ID) REFERENCES ANIME(ID),
-      PRIMARY KEY(ANI_ID, SEASON_ID, EPISODE_NUMBER)
+      PRIMARY KEY(ANI_ID, EP_NUM)
+  )`,
+	`CREATE TABLE IF NOT EXISTS DOWNLOADS(
+    ANI_ID  INTEGER,
+    EP_NUM  INTEGER,
+    QUALITY VARCHAR,
+    MAGNET  VARCHAR,
+    STATUS  VARCHAR,
+    PRIMARY KEY (ANI_ID, EP_NUM),
+    FOREIGN KEY(ANI_ID, EP_NUM) REFERENCES EPISODES(ANI_ID, EP_NUM)
   )`,
 }
 
@@ -55,4 +69,76 @@ func ensureDB(db *sql.DB, dbLogger *slog.Logger) {
 		}
 	}
 	txn.Commit()
+}
+
+func insert(db *sql.DB, tableName string, rows []string, cols []any) (int64, error) {
+	txn, err := db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	qMarks := make([]string, 0, len(rows))
+	for range len(rows) {
+		qMarks = append(qMarks, "?")
+	}
+	query := fmt.Sprintf("INSERT INTO %s (%s) Values(%s)",
+		tableName, strings.Join(rows, ","), strings.Join(qMarks, ", "))
+	fmt.Println(query)
+	stmt, err := txn.Prepare(query)
+	if err != nil {
+		return 0, err
+	}
+	defer stmt.Close()
+
+	result, err := stmt.Exec(cols...)
+	if err != nil {
+		return 0, err
+	}
+	result.RowsAffected()
+
+	txn.Commit()
+	return result.RowsAffected()
+}
+
+func dbStage(db *sql.DB, done <-chan bool, dbChan <-chan *objects.Anime, logChan chan<- objects.Logging) chan int {
+	dbResChan := make(chan int)
+	go func() {
+		defer close(dbResChan)
+		for {
+			select {
+			case <-done:
+				return
+			case ani := <-dbChan:
+				rows, err := insert(db, "anime", []string{
+					"ID",
+					"NAME",
+					"START_DATE",
+					"END_DATE",
+					"STATUS",
+				}, []any{
+					ani.GetID(),
+					ani.GetTitle(),
+					ani.GetStartDate(),
+					ani.GetEndDate(),
+					ani.GetStatus(),
+				})
+				go func() {
+					if err != nil {
+						logChan <- objects.Logging{
+							Message: "failed to insert row",
+							Error:   err,
+							Level:   objects.L_ERROR,
+						}
+					} else {
+						logChan <- objects.Logging{
+							Message: fmt.Sprintf("Insert rows %d", rows),
+							Error:   nil,
+							Level:   objects.L_INFO,
+						}
+					}
+				}()
+				dbResChan <- int(rows)
+			}
+		}
+	}()
+	return dbResChan
 }
