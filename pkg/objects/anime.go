@@ -1,35 +1,26 @@
 package objects
 
 import (
-	"strings"
 	"time"
 
 	"github.com/darenliang/jikan-go"
 )
 
+type DBRecords interface {
+	GetDBRecords() ([]string, []any)
+	GetTblName() string
+}
+
 type Anime struct {
 	jkAnime *jikan.AnimeBase
+	tblName string
 }
 
-type Episode struct {
-	EpNum   string `json:"epno"`
-	Num     int
-	Title   string  `json:"title"`
-	Summary string  `json:"summary"`
-	AirDate xmlDate `json:"airdate"`
-}
-
-func NewAnime(data []*jikan.AnimeBase, search string) *Anime {
-	var an *Anime
-	for _, anime := range data {
-		if strings.EqualFold(anime.TitleEnglish, search) {
-			an = &Anime{
-				anime,
-			}
-			break
-		}
+func NewAnime(data *jikan.AnimeBase) *Anime {
+	return &Anime{
+		jkAnime: data,
+		tblName: "ANIME",
 	}
-	return an
 }
 
 func (a *Anime) GetID() int {
@@ -50,4 +41,50 @@ func (a *Anime) GetEndDate() time.Time {
 
 func (a *Anime) GetStatus() string {
 	return a.jkAnime.Status
+}
+
+func (a *Anime) GetDBRecords() ([]string, []any) {
+	return []string{
+			"ID",
+			"NAME",
+			"START_DATE",
+			"END_DATE",
+			"STATUS",
+		}, []any{
+			a.GetID(),
+			a.GetTitle(),
+			a.GetStartDate(),
+			a.GetEndDate(),
+			a.GetStatus(),
+		}
+}
+
+func (a *Anime) GetTblName() string {
+	return a.tblName
+}
+
+type Episode struct {
+	AniID    int
+	ID       int
+	Duration int
+	Title    string
+	Aired    time.Time
+}
+
+func (e *Episode) GetDBRecords() ([]string, []any) {
+	return []string{
+			"ANI_ID",
+			"EP_NUM",
+			"TITLE",
+			"AIR_DATE",
+		}, []any{
+			e.AniID,
+			e.ID,
+			e.Title,
+			e.Aired,
+		}
+}
+
+func (e *Episode) GetTblName() string {
+	return "EPISODES"
 }

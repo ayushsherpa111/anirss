@@ -93,13 +93,11 @@ func insert(db *sql.DB, tableName string, rows []string, cols []any) (int64, err
 	if err != nil {
 		return 0, err
 	}
-	result.RowsAffected()
-
 	txn.Commit()
 	return result.RowsAffected()
 }
 
-func dbStage(db *sql.DB, done <-chan bool, dbChan <-chan *objects.Anime, logChan chan<- objects.Logging) chan int {
+func insertObj(db *sql.DB, done <-chan bool, dbChan <-chan objects.DBRecords, logChan chan<- objects.Logging) chan int {
 	dbResChan := make(chan int)
 	go func() {
 		defer close(dbResChan)
@@ -107,35 +105,25 @@ func dbStage(db *sql.DB, done <-chan bool, dbChan <-chan *objects.Anime, logChan
 			select {
 			case <-done:
 				return
-			case ani := <-dbChan:
-				rows, err := insert(db, "anime", []string{
-					"ID",
-					"NAME",
-					"START_DATE",
-					"END_DATE",
-					"STATUS",
-				}, []any{
-					ani.GetID(),
-					ani.GetTitle(),
-					ani.GetStartDate(),
-					ani.GetEndDate(),
-					ani.GetStatus(),
-				})
-				go func() {
-					if err != nil {
-						logChan <- objects.Logging{
-							Message: "failed to insert row",
-							Error:   err,
-							Level:   objects.L_ERROR,
-						}
-					} else {
-						logChan <- objects.Logging{
-							Message: fmt.Sprintf("Insert rows %d", rows),
-							Error:   nil,
-							Level:   objects.L_INFO,
-						}
+			case obj, ok := <-dbChan:
+				if !ok {
+					return
+				}
+				columns, values := obj.GetDBRecords()
+				rows, err := insert(db, obj.GetTblName(), columns, values)
+				if err != nil {
+					logChan <- objects.Logging{
+						Message: "failed to insert row",
+						Error:   err,
+						Level:   objects.L_ERROR,
 					}
-				}()
+				} else {
+					logChan <- objects.Logging{
+						Message: fmt.Sprintf("Insert rows %d", rows),
+						Error:   nil,
+						Level:   objects.L_INFO,
+					}
+				}
 				dbResChan <- int(rows)
 			}
 		}

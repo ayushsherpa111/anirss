@@ -16,7 +16,6 @@ import (
 	"github.com/ayushsherpa111/anirss/pkg/objects"
 	"github.com/ayushsherpa111/anirss/pkg/rpc/dbservice"
 	"github.com/ayushsherpa111/anirss/pkg/utils"
-	"github.com/darenliang/jikan-go"
 )
 
 const (
@@ -125,11 +124,11 @@ func (d *dbRPC) AddAnimeById(ctx context.Context, anime *dbservice.AniParams) (*
 func (d *dbRPC) loggingStage() chan objects.Logging {
 	loggingChan := make(chan objects.Logging, 10)
 	go func() {
-		defer close(loggingChan)
 		for log := range loggingChan {
-			if log.Level == objects.L_ERROR {
+			switch log.Level {
+			case objects.L_ERROR:
 				d.logger.Error(log.Message, "error", log.Error.Error())
-			} else if log.Level == objects.L_INFO {
+			case objects.L_INFO:
 				d.logger.Info(log.Message)
 			}
 		}
@@ -137,45 +136,69 @@ func (d *dbRPC) loggingStage() chan objects.Logging {
 	return loggingChan
 }
 
+func (d *dbRPC) episodeStage(aniID int) chan objects.DBRecords {
+	epChan := make(chan objects.DBRecords)
+	go func() {
+		wg := &sync.WaitGroup{}
+		defer close(epChan)
+		if e := api.GetAnimeEpisodes(wg, aniID, 1, epChan); e != nil {
+			d.logger.Error("Failed to fetch all episode", "error", e.Error())
+		}
+		wg.Wait()
+	}()
+	return epChan
+}
+
 func (d *dbRPC) AddAnimeByName(ctx context.Context, param *dbservice.AniParams) (*dbservice.Result, error) {
 	result := new(dbservice.Result)
-	shows := make([]*jikan.AnimeBase, 0, 10)
 	loggingChan := d.loggingStage()
 	doneChan := make(chan bool)
 	defer close(loggingChan)
 	defer close(doneChan)
 
-	if err := api.GetAnimeByName(param.GetName(), shows); err != nil {
+	defer func() {
+		if r := recover(); r != nil {
+			d.logger.Debug("recovered an error in AddAnime", "panic", r)
+			fmt.Println(r)
+			result.Status = "Failed"
+			result.NewEntries = 0
+		}
+	}()
+
+	anime, err := api.GetAnimeByName(param.GetName())
+	if err != nil {
 		result.Status = "Failed"
 		result.NewEntries = 0
 
 		return result, fmt.Errorf("failed to fetch anime. %s", err.Error())
 	}
+	epInpChan := d.episodeStage(anime.GetID())
+	go func() {
+		loggingChan <- objects.Logging{
+			Message: fmt.Sprintf("Found Anime %s", anime.GetTitle()),
+			Level:   objects.L_INFO,
+		}
+	}()
 
-	anime := objects.NewAnime(shows, param.GetName())
-	if anime == nil {
-		return result, nil
-	}
+	fmt.Printf("got anime %s\n", anime.GetTitle())
 
-	dbInputChan := make(chan *objects.Anime)
-	episodeChan := make(chan *objects.Anime)
-	dbStage(d.db, doneChan, dbInputChan, loggingChan)
-	// create pipeline for db insertion, episode fetcher and logging.
-	wg := sync.WaitGroup{}
-	wg.Add(2)
+	dbInputChan := make(chan objects.DBRecords)
 
 	go func() {
 		dbInputChan <- anime
-		wg.Done()
+		close(dbInputChan)
 	}()
 
-	go func() {
-		episodeChan <- anime
-		wg.Done()
-	}()
-	wg.Wait()
+	dbChan := insertObj(d.db, doneChan, dbInputChan, loggingChan)
+	// close the channel returned from episodeStage
+	epOutChan := insertObj(d.db, doneChan, epInpChan, loggingChan)
 
-	return result, nil
+	for v := range utils.Multiplexer(dbChan, epOutChan) {
+		fmt.Println("added record")
+		result.NewEntries += int32(v)
+	}
+
+	return result, err
 }
 
 func NewDBServer(dbLogger *slog.Logger) *dbRPC {

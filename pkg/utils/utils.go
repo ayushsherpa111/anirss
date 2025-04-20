@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"net/url"
+	"sync"
 )
 
 func AddParams(uri string, args ...string) (string, error) {
@@ -27,4 +28,27 @@ func Must[T any](val T, err error) T {
 		panic(err)
 	}
 	return val
+}
+
+func Multiplexer[T any](inpChan ...chan T) chan T {
+	multiplexChan := make(chan T)
+	wg := sync.WaitGroup{}
+	wg.Add(len(inpChan))
+	multiplexFunc := func(c chan T) {
+		defer wg.Done()
+		for v := range c {
+			multiplexChan <- v
+		}
+	}
+
+	for _, c := range inpChan {
+		go multiplexFunc(c)
+	}
+
+	go func() {
+		wg.Wait()
+		close(multiplexChan)
+	}()
+
+	return multiplexChan
 }
