@@ -23,14 +23,14 @@ func GetAnimeByName(name string) (*objects.Anime, error) {
 	params.Set("limit", "10")
 
 	result, error := jikan.GetAnimeSearch(params)
+	// prevent rate limiting
+	time.Sleep(time.Second)
 	if error != nil {
 		return nil, error
 	}
 
 	for _, v := range result.Data {
 		if isMatch(name, v.TitleEnglish) {
-			// prevent rate limiting
-			time.Sleep(time.Second)
 			return objects.NewAnime(&v), nil
 		}
 	}
@@ -49,13 +49,13 @@ func GetAnimeEpisodes(wg *sync.WaitGroup, id int, page int, filteredEpisodes cha
 	go func() {
 		for _, ep := range episodes.Data {
 			if !ep.Filler || !ep.Recap {
-				filteredEpisodes <- &objects.Episode{
-					AniID:    id,
-					ID:       ep.MalId,
-					Duration: ep.Duration,
-					Title:    ep.Title,
-					Aired:    ep.Aired,
-				}
+				filteredEpisodes <- objects.NewEpisode(
+					id,
+					ep.MalId,
+					ep.Duration,
+					ep.Title,
+					ep.Aired,
+				)
 			}
 		}
 		wg.Done()

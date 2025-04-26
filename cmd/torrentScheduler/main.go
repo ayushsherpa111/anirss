@@ -38,7 +38,7 @@ func main() {
 	}
 
 	grpcServer := grpc.NewServer()
-	schLogger.Info("gRPC server listening.")
+	schLogger.Info("torrent gRPC server listening.")
 	if err := grpcServer.Serve(listener); err != nil {
 		schLogger.Error(err.Error())
 		os.Exit(1)

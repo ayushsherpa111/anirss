@@ -97,7 +97,7 @@ func insert(db *sql.DB, tableName string, rows []string, cols []any) (int64, err
 	return result.RowsAffected()
 }
 
-func insertObj(db *sql.DB, done <-chan bool, dbChan <-chan objects.DBRecords, logChan chan<- objects.Logging) chan int {
+func insertObj(db *sql.DB, done <-chan bool, dataChan <-chan objects.DBRecords, logChan chan<- objects.Logging) chan int {
 	dbResChan := make(chan int)
 	go func() {
 		defer close(dbResChan)
@@ -105,7 +105,7 @@ func insertObj(db *sql.DB, done <-chan bool, dbChan <-chan objects.DBRecords, lo
 			select {
 			case <-done:
 				return
-			case obj, ok := <-dbChan:
+			case obj, ok := <-dataChan:
 				if !ok {
 					return
 				}
@@ -129,4 +129,12 @@ func insertObj(db *sql.DB, done <-chan bool, dbChan <-chan objects.DBRecords, lo
 		}
 	}()
 	return dbResChan
+}
+
+// seed the Downloads table with anime ID and Episode ID upon initial download of anime and episodes.
+// status is set to pending to indicate RSS feed to pull magnet URI
+// status will be set downloading once torrent download has started
+// status wil be set to downloaded once torrent succeds.
+func seedDownloads(aID int) {
+	// select a.ID, e.EP_NUM from ANIME a JOIN EPISODES e on a.ID = e.ANI_ID;
 }

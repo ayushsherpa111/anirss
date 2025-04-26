@@ -182,14 +182,14 @@ func (d *dbRPC) AddAnimeByName(ctx context.Context, param *dbservice.AniParams) 
 
 	fmt.Printf("got anime %s\n", anime.GetTitle())
 
-	dbInputChan := make(chan objects.DBRecords)
+	dbInpChan := make(chan objects.DBRecords)
 
 	go func() {
-		dbInputChan <- anime
-		close(dbInputChan)
+		dbInpChan <- anime
+		close(dbInpChan)
 	}()
 
-	dbChan := insertObj(d.db, doneChan, dbInputChan, loggingChan)
+	dbChan := insertObj(d.db, doneChan, dbInpChan, loggingChan)
 	// close the channel returned from episodeStage
 	epOutChan := insertObj(d.db, doneChan, epInpChan, loggingChan)
 

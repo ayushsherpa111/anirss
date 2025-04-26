@@ -28,8 +28,8 @@ func main() {
 	utils.LoadEnv(dbLogger)
 	dbSvcServer := dbhandler.NewDBServer(dbLogger)
 
-	// setup TCP listner on port {dbPort}
-	listner, err := net.ListenTCP("tcp", &net.TCPAddr{
+	// setup TCP listener on port {dbPort}
+	listener, err := net.ListenTCP("tcp", &net.TCPAddr{
 		IP:   dbServerAddr,
 		Port: dbPort,
 	})
@@ -42,7 +42,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 	dbservice.RegisterAniDbSvcServer(grpcServer, dbSvcServer)
 	dbLogger.Info("db grpc Server listening", "port", dbPort)
-	if err := grpcServer.Serve(listner); err != nil {
+	if err := grpcServer.Serve(listener); err != nil {
 		dbLogger.Error(err.Error())
 		os.Exit(1)
 	}
