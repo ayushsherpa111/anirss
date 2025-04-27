@@ -125,11 +125,13 @@ func (d *dbRPC) loggingStage() chan objects.Logging {
 	loggingChan := make(chan objects.Logging, 10)
 	go func() {
 		for log := range loggingChan {
+			fmt.Println(log.Message)
+			fmt.Println(log.Payload)
 			switch log.Level {
 			case objects.L_ERROR:
 				d.logger.Error(log.Message, "error", log.Error.Error())
 			case objects.L_INFO:
-				d.logger.Info(log.Message)
+				d.logger.Info(log.Message, "params", log.Payload)
 			}
 		}
 	}()
@@ -197,6 +199,9 @@ func (d *dbRPC) AddAnimeByName(ctx context.Context, param *dbservice.AniParams) 
 		fmt.Println("added record")
 		result.NewEntries += int32(v)
 	}
+
+	// seed download list after anime and episode table has been populated
+	result.NewEntries += insert(d.db, loggingChan, queryMap[DOWNLOAD_SEED], anime.GetID())
 
 	return result, err
 }

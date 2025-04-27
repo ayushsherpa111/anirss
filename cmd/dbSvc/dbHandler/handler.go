@@ -12,7 +12,8 @@ import (
 )
 
 const (
-	dbLocation = "./store/anilookup.db"
+	dbLocation    = "./store/anilookup.db"
+	DOWNLOAD_SEED = "seed_downloads"
 )
 
 var tables = []string{
@@ -43,6 +44,29 @@ var tables = []string{
   )`,
 }
 
+var queryMap = map[string]string{
+	// seed the Downloads table with anime ID and Episode ID upon initial download of anime and episodes.
+	// status is set to pending to indicate RSS feed to pull magnet URI
+	// status will be set downloading once torrent download has started
+	// status wil be set to downloaded once torrent succeds.
+	"seed_downloads": `
+	 INSERT INTO DOWNLOADS
+	   (
+	     ANI_ID,
+	     EP_NUM,
+	     STATUS
+	   )
+	 SELECT
+	     a.ID      AS ANI_ID,
+	     e.EP_NUM  AS EP_NUM,
+	     'PENDING' AS STATUS
+	 FROM ANIME a
+	 JOIN EPISODES e
+	   on e.ANI_ID = a.ID
+	 WHERE a.ID = ?
+	 `,
+}
+
 func InitDB(dbLogger *slog.Logger) (db *sql.DB) {
 	var err error
 	if db, err = sql.Open("sqlite3", dbLocation); err != nil {
@@ -71,30 +95,12 @@ func ensureDB(db *sql.DB, dbLogger *slog.Logger) {
 	txn.Commit()
 }
 
-func insert(db *sql.DB, tableName string, rows []string, cols []any) (int64, error) {
-	txn, err := db.Begin()
-	if err != nil {
-		return 0, err
+func buildInsertQuery(tbl_name string, columns []string) string {
+	if len(columns) == 0 {
+		return ""
 	}
-	qMarks := make([]string, 0, len(rows))
-	for range len(rows) {
-		qMarks = append(qMarks, "?")
-	}
-	query := fmt.Sprintf("INSERT INTO %s (%s) Values(%s)",
-		tableName, strings.Join(rows, ","), strings.Join(qMarks, ", "))
-	fmt.Println(query)
-	stmt, err := txn.Prepare(query)
-	if err != nil {
-		return 0, err
-	}
-	defer stmt.Close()
-
-	result, err := stmt.Exec(cols...)
-	if err != nil {
-		return 0, err
-	}
-	txn.Commit()
-	return result.RowsAffected()
+	return fmt.Sprintf(`INSERT INTO %s( %s ) VALUES(%s?)`,
+		tbl_name, strings.Join(columns, ","), strings.Repeat("?,", len(columns)-1))
 }
 
 func insertObj(db *sql.DB, done <-chan bool, dataChan <-chan objects.DBRecords, logChan chan<- objects.Logging) chan int {
@@ -110,20 +116,8 @@ func insertObj(db *sql.DB, done <-chan bool, dataChan <-chan objects.DBRecords, 
 					return
 				}
 				columns, values := obj.GetDBRecords()
-				rows, err := insert(db, obj.GetTblName(), columns, values)
-				if err != nil {
-					logChan <- objects.Logging{
-						Message: "failed to insert row",
-						Error:   err,
-						Level:   objects.L_ERROR,
-					}
-				} else {
-					logChan <- objects.Logging{
-						Message: fmt.Sprintf("Insert rows %d", rows),
-						Error:   nil,
-						Level:   objects.L_INFO,
-					}
-				}
+				query := buildInsertQuery(obj.GetTblName(), columns)
+				rows := insert(db, logChan, query, values...)
 				dbResChan <- int(rows)
 			}
 		}
@@ -131,10 +125,45 @@ func insertObj(db *sql.DB, done <-chan bool, dataChan <-chan objects.DBRecords, 
 	return dbResChan
 }
 
-// seed the Downloads table with anime ID and Episode ID upon initial download of anime and episodes.
-// status is set to pending to indicate RSS feed to pull magnet URI
-// status will be set downloading once torrent download has started
-// status wil be set to downloaded once torrent succeds.
-func seedDownloads(aID int) {
-	// select a.ID, e.EP_NUM from ANIME a JOIN EPISODES e on a.ID = e.ANI_ID;
+func insert(db *sql.DB, logChan chan<- objects.Logging, query string, args ...any) int32 {
+	var err error
+	var txn *sql.Tx
+	defer func() {
+		logChan <- objects.Logging{
+			Message: fmt.Sprintf("executing Insert statement, with args: %v", args),
+			Payload: fmt.Sprint(query),
+			Level:   objects.L_INFO,
+		}
+		if err != nil {
+			logChan <- objects.Logging{
+				Message: "error while executing insert statement",
+				Level:   objects.L_ERROR,
+				Error:   err,
+			}
+			if txn != nil {
+				txn.Rollback()
+			}
+			return
+		}
+		txn.Commit()
+	}()
+
+	txn, err = db.Begin()
+	if err != nil {
+		return 0
+	}
+
+	stmt, err := txn.Prepare(query)
+	if err != nil {
+		return 0
+	}
+	defer stmt.Close()
+
+	res, err := stmt.Exec(args...)
+	if err != nil {
+		return 0
+	}
+	rows, _ := res.RowsAffected()
+
+	return int32(rows)
 }
