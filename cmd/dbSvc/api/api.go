@@ -38,9 +38,9 @@ func GetAnimeByName(name string) (*objects.Anime, error) {
 	return nil, fmt.Errorf("could not find any anime of the name %s", name)
 }
 
-func GetAnimeEpisodes(wg *sync.WaitGroup, id int, page int, filteredEpisodes chan objects.DBRecords) error {
+func GetAnimeEpisodes(wg *sync.WaitGroup, pID int, page int, filteredEpisodes chan objects.DBRecords) error {
 	wg.Add(1)
-	episodes, err := jikan.GetAnimeEpisodes(id, page)
+	episodes, err := jikan.GetAnimeEpisodes(pID, page)
 	// prevent rate limiting
 	time.Sleep(time.Second)
 	if err != nil {
@@ -50,8 +50,8 @@ func GetAnimeEpisodes(wg *sync.WaitGroup, id int, page int, filteredEpisodes cha
 		for _, ep := range episodes.Data {
 			if !ep.Filler || !ep.Recap {
 				filteredEpisodes <- objects.NewEpisode(
-					id,
 					ep.MalId,
+					pID,
 					ep.Duration,
 					ep.Title,
 					ep.Aired,
@@ -62,7 +62,7 @@ func GetAnimeEpisodes(wg *sync.WaitGroup, id int, page int, filteredEpisodes cha
 	}()
 
 	if episodes.Pagination.HasNextPage {
-		err = GetAnimeEpisodes(wg, id, page+1, filteredEpisodes)
+		err = GetAnimeEpisodes(wg, pID, page+1, filteredEpisodes)
 	}
 	return err
 }
