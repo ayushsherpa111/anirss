@@ -46,7 +46,7 @@ func (a *Anime) GetStatus() string {
 func (a *Anime) GetDBRecords() ([]string, []any) {
 	return []string{
 			"ID",
-			"NAME",
+			"TITLE",
 			"START_DATE",
 			"END_DATE",
 			"STATUS",
@@ -63,15 +63,16 @@ func (a *Anime) GetTblName() string {
 	return a.tblName
 }
 
-type Episode struct {
+type episode struct {
 	AniID    int
-	ID       int
+	EpNum    int
 	Duration int
 	Title    string
 	Aired    time.Time
+	tblName  string
 }
 
-func (e *Episode) GetDBRecords() ([]string, []any) {
+func (e *episode) GetDBRecords() ([]string, []any) {
 	return []string{
 			"ANI_ID",
 			"EP_NUM",
@@ -79,12 +80,23 @@ func (e *Episode) GetDBRecords() ([]string, []any) {
 			"AIR_DATE",
 		}, []any{
 			e.AniID,
-			e.ID,
+			e.EpNum,
 			e.Title,
 			e.Aired,
 		}
 }
 
-func (e *Episode) GetTblName() string {
-	return "EPISODES"
+func (e *episode) GetTblName() string {
+	return e.tblName
+}
+
+func NewEpisode(id, pId, duration int, title string, aired time.Time) *episode {
+	return &episode{
+		EpNum:    id,
+		AniID:    pId,
+		Duration: duration,
+		Title:    title,
+		Aired:    aired,
+		tblName:  "EPISODES",
+	}
 }
